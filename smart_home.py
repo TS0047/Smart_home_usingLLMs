@@ -23,81 +23,166 @@ from typing import TypedDict, List, Optional
 # ─────────────────────────────────────────────────────────
 
 class IoTDevices:
+    # ─── LIGHTS ───
     @staticmethod
-    def light_on(room: str = "living room"):
-        print(f"  [IoT] 💡 Light ON  → {room}")
-        return f"Light ON in {room}"
+    def light_on_bedroom():
+        print(f"  [IoT] 💡 Light ON  → Bedroom")
+        return "Bedroom light turned on"
 
     @staticmethod
-    def light_off(room: str = "living room"):
-        print(f"  [IoT] 🌑 Light OFF → {room}")
-        return f"Light OFF in {room}"
+    def light_off_bedroom():
+        print(f"  [IoT] 🌑 Light OFF → Bedroom")
+        return "Bedroom light turned off"
 
     @staticmethod
-    def fan_on(room: str = "bedroom"):
-        print(f"  [IoT] 🌀 Fan ON   → {room}")
-        return f"Fan ON in {room}"
+    def light_on_hall():
+        print(f"  [IoT] 💡 Light ON  → Hall")
+        return "Hall light turned on"
 
     @staticmethod
-    def fan_off(room: str = "bedroom"):
-        print(f"  [IoT] ⛔ Fan OFF  → {room}")
-        return f"Fan OFF in {room}"
+    def light_off_hall():
+        print(f"  [IoT] 🌑 Light OFF → Hall")
+        return "Hall light turned off"
 
     @staticmethod
-    def ac_set_temp(temp: int = 22, room: str = "bedroom"):
-        print(f"  [IoT] ❄️  AC {temp}°C → {room}")
-        return f"AC set to {temp}°C in {room}"
+    def light_on_kitchen():
+        print(f"  [IoT] 💡 Light ON  → Kitchen")
+        return "Kitchen light turned on"
 
     @staticmethod
-    def door_lock(door: str = "main"):
-        print(f"  [IoT] 🔒 Lock     → {door} door")
-        return f"{door} door locked"
+    def light_off_kitchen():
+        print(f"  [IoT] 🌑 Light OFF → Kitchen")
+        return "Kitchen light turned off"
+
+    # ─── TV ───
+    @staticmethod
+    def tv_on_hall():
+        print(f"  [IoT] 📺 TV ON   → Hall")
+        return "Hall TV turned on"
 
     @staticmethod
-    def door_unlock(door: str = "main"):
-        print(f"  [IoT] 🔓 Unlock   → {door} door")
-        return f"{door} door unlocked"
+    def tv_off_hall():
+        print(f"  [IoT] 📺 TV OFF  → Hall")
+        return "Hall TV turned off"
 
     @staticmethod
-    def tv_on(room: str = "living room"):
-        print(f"  [IoT] 📺 TV ON   → {room}")
-        return f"TV ON in {room}"
+    def tv_on_bedroom():
+        print(f"  [IoT] 📺 TV ON   → Bedroom")
+        return "Bedroom TV turned on"
 
     @staticmethod
-    def tv_off(room: str = "living room"):
-        print(f"  [IoT] 📺 TV OFF  → {room}")
-        return f"TV OFF in {room}"
+    def tv_off_bedroom():
+        print(f"  [IoT] 📺 TV OFF  → Bedroom")
+        return "Bedroom TV turned off"
+
+    # ─── FAN ───
+    @staticmethod
+    def fan_on_bedroom():
+        print(f"  [IoT] 🌀 Fan ON   → Bedroom")
+        return "Bedroom fan turned on"
+
+    @staticmethod
+    def fan_off_bedroom():
+        print(f"  [IoT] ⛔ Fan OFF  → Bedroom")
+        return "Bedroom fan turned off"
+
+    @staticmethod
+    def fan_on_hall():
+        print(f"  [IoT] 🌀 Fan ON   → Hall")
+        return "Hall fan turned on"
+
+    @staticmethod
+    def fan_off_hall():
+        print(f"  [IoT] ⛔ Fan OFF  → Hall")
+        return "Hall fan turned off"
+
+    # ─── AC / THERMOSTAT ───
+    @staticmethod
+    def ac_set_temp_bedroom(temp: int = 22):
+        print(f"  [IoT] ❄️  AC → Bedroom {temp}°C")
+        return f"Bedroom AC set to {temp}°C"
 
     @staticmethod
     def thermostat_set(temp: int = 24):
         print(f"  [IoT] 🌡️  Thermostat → {temp}°C")
         return f"Thermostat set to {temp}°C"
 
+    # ─── DOORS ───
+    @staticmethod
+    def door_lock_front():
+        print(f"  [IoT] 🔒 Lock     → Front Door")
+        return "Front door locked"
+
+    @staticmethod
+    def door_unlock_front():
+        print(f"  [IoT] 🔓 Unlock   → Front Door")
+        return "Front door unlocked"
+
+    @staticmethod
+    def door_lock_back():
+        print(f"  [IoT] 🔒 Lock     → Back Door")
+        return "Back door locked"
+
+    @staticmethod
+    def door_unlock_back():
+        print(f"  [IoT] 🔓 Unlock   → Back Door")
+        return "Back door unlocked"
+
 
 DEVICE_MAP = {
-    "light_on":       IoTDevices.light_on,
-    "light_off":      IoTDevices.light_off,
-    "fan_on":         IoTDevices.fan_on,
-    "fan_off":        IoTDevices.fan_off,
-    "ac_set_temp":    IoTDevices.ac_set_temp,
-    "door_lock":      IoTDevices.door_lock,
-    "door_unlock":    IoTDevices.door_unlock,
-    "tv_on":          IoTDevices.tv_on,
-    "tv_off":         IoTDevices.tv_off,
-    "thermostat_set": IoTDevices.thermostat_set,
+    # Lights
+    "light_on_bedroom":      IoTDevices.light_on_bedroom,
+    "light_off_bedroom":     IoTDevices.light_off_bedroom,
+    "light_on_hall":         IoTDevices.light_on_hall,
+    "light_off_hall":        IoTDevices.light_off_hall,
+    "light_on_kitchen":      IoTDevices.light_on_kitchen,
+    "light_off_kitchen":     IoTDevices.light_off_kitchen,
+    # TV
+    "tv_on_hall":            IoTDevices.tv_on_hall,
+    "tv_off_hall":           IoTDevices.tv_off_hall,
+    "tv_on_bedroom":         IoTDevices.tv_on_bedroom,
+    "tv_off_bedroom":        IoTDevices.tv_off_bedroom,
+    # Fan
+    "fan_on_bedroom":        IoTDevices.fan_on_bedroom,
+    "fan_off_bedroom":       IoTDevices.fan_off_bedroom,
+    "fan_on_hall":           IoTDevices.fan_on_hall,
+    "fan_off_hall":          IoTDevices.fan_off_hall,
+    # AC / Thermostat
+    "ac_set_temp_bedroom":   IoTDevices.ac_set_temp_bedroom,
+    "thermostat_set":        IoTDevices.thermostat_set,
+    # Doors
+    "door_lock_front":       IoTDevices.door_lock_front,
+    "door_unlock_front":     IoTDevices.door_unlock_front,
+    "door_lock_back":        IoTDevices.door_lock_back,
+    "door_unlock_back":      IoTDevices.door_unlock_back,
 }
 
 TOOL_SCHEMA = "\n".join([
-    "light_on(room)          - turn on light",
-    "light_off(room)         - turn off light",
-    "fan_on(room)            - turn on fan",
-    "fan_off(room)           - turn off fan",
-    "ac_set_temp(temp, room) - set AC temperature",
-    "door_lock(door)         - lock a door",
-    "door_unlock(door)       - unlock a door",
-    "tv_on(room)             - turn on TV",
-    "tv_off(room)            - turn off TV",
-    "thermostat_set(temp)    - set thermostat",
+    "[LIGHTS]",
+    "light_on_bedroom()       - turn on bedroom light",
+    "light_off_bedroom()      - turn off bedroom light",
+    "light_on_hall()          - turn on hall light",
+    "light_off_hall()         - turn off hall light",
+    "light_on_kitchen()       - turn on kitchen light",
+    "light_off_kitchen()      - turn off kitchen light",
+    "[TV]",
+    "tv_on_hall()             - turn on hall TV",
+    "tv_off_hall()            - turn off hall TV",
+    "tv_on_bedroom()          - turn on bedroom TV",
+    "tv_off_bedroom()         - turn off bedroom TV",
+    "[FAN]",
+    "fan_on_bedroom()         - turn on bedroom fan",
+    "fan_off_bedroom()        - turn off bedroom fan",
+    "fan_on_hall()            - turn on hall fan",
+    "fan_off_hall()           - turn off hall fan",
+    "[AC & THERMOSTAT]",
+    "ac_set_temp_bedroom(temp) - set bedroom AC temperature (default 22°C)",
+    "thermostat_set(temp)    - set whole-house thermostat (default 24°C)",
+    "[DOORS]",
+    "door_lock_front()        - lock front door",
+    "door_unlock_front()      - unlock front door",
+    "door_lock_back()         - lock back door",
+    "door_unlock_back()       - unlock back door",
 ])
 
 # ─────────────────────────────────────────────────────────
@@ -155,16 +240,36 @@ def init_chroma() -> chromadb.Collection:
     col = client.get_or_create_collection("iot_devices", embedding_function=ef)
 
     docs = [
-        {"id": "light_on",       "doc": "turn on light illuminate brighten room switch on lights"},
-        {"id": "light_off",      "doc": "turn off light darken room switch off lights dim"},
-        {"id": "fan_on",         "doc": "turn on fan start fan airflow ventilate cool"},
-        {"id": "fan_off",        "doc": "turn off fan stop fan disable fan"},
-        {"id": "ac_set_temp",    "doc": "set AC air conditioner temperature cooling degrees cold"},
-        {"id": "door_lock",      "doc": "lock door secure entrance deadbolt"},
-        {"id": "door_unlock",    "doc": "unlock door open entrance allow entry"},
-        {"id": "tv_on",          "doc": "turn on TV television watch start TV"},
-        {"id": "tv_off",         "doc": "turn off TV television stop watching"},
-        {"id": "thermostat_set", "doc": "set thermostat home temperature heating cooling control"},
+        # Bedroom Lights
+        {"id": "light_on_bedroom",       "doc": "turn on bedroom light illuminate bedroom brighten bedroom room switch on lights"},
+        {"id": "light_off_bedroom",      "doc": "turn off bedroom light darken bedroom switch off lights dim bedroom"},
+        # Hall Lights
+        {"id": "light_on_hall",          "doc": "turn on hall light illuminate hall brighten hallway living room switch on lights"},
+        {"id": "light_off_hall",         "doc": "turn off hall light darken hall switch off lights dim living room"},
+        # Kitchen Lights
+        {"id": "light_on_kitchen",       "doc": "turn on kitchen light illuminate kitchen brighten kitchen switch on lights"},
+        {"id": "light_off_kitchen",      "doc": "turn off kitchen light darken kitchen switch off lights dim kitchen"},
+        # Hall TV
+        {"id": "tv_on_hall",             "doc": "turn on hall TV television living room watch start TV watch television"},
+        {"id": "tv_off_hall",            "doc": "turn off hall TV television living room stop watching end TV"},
+        # Bedroom TV
+        {"id": "tv_on_bedroom",          "doc": "turn on bedroom TV television bedroom watch start bedroom TV"},
+        {"id": "tv_off_bedroom",         "doc": "turn off bedroom TV television bedroom stop watching end bedroom TV"},
+        # Bedroom Fan
+        {"id": "fan_on_bedroom",         "doc": "turn on bedroom fan start fan airflow ventilate cool bedroom"},
+        {"id": "fan_off_bedroom",        "doc": "turn off bedroom fan stop fan disable fan bedroom"},
+        # Hall Fan
+        {"id": "fan_on_hall",            "doc": "turn on hall fan start fan airflow ventilate cool living room hall"},
+        {"id": "fan_off_hall",           "doc": "turn off hall fan stop fan disable fan hall living room"},
+        # AC & Thermostat
+        {"id": "ac_set_temp_bedroom",    "doc": "set bedroom AC temperature air conditioner cooling bedroom degrees cold"},
+        {"id": "thermostat_set",         "doc": "set thermostat home temperature heating cooling control whole house"},
+        # Front Door
+        {"id": "door_lock_front",        "doc": "lock front door secure entrance deadbolt front door"},
+        {"id": "door_unlock_front",      "doc": "unlock front door open entrance allow entry front door"},
+        # Back Door
+        {"id": "door_lock_back",         "doc": "lock back door secure back entrance deadbolt back door"},
+        {"id": "door_unlock_back",       "doc": "unlock back door open back entrance allow entry back door"},
     ]
 
     existing = col.get()["ids"]
@@ -248,16 +353,13 @@ def embedding_node(state: AgentState, col: chromadb.Collection) -> AgentState:
 # ── 3. Orch reviews embedding results ───────────────────
 
 def orch_review_embed(state: AgentState) -> AgentState:
-    ctx = f"""User intent: "{state['refined_query']}"
-Embedding AI returned these IoT device candidates: {state['relevant_nodes']}
-Available devices: {list(DEVICE_MAP.keys())}"""
-
-    verdict = _orch_review(ctx, "Are these device candidates sufficient to fulfill the intent?")
-    print(f"[Orch→Embed] {verdict}")
-
-    if verdict.startswith("RETRY"):
-        reason = verdict[6:].strip()
+    # Pragmatic check: if any relevant nodes were found, approve. Otherwise retry.
+    if not state["relevant_nodes"]:
+        reason = "No relevant IoT functions found in search."
+        print(f"[Orch→Embed] RETRY: {reason}")
         return {**state, "embed_feedback": reason, "embed_retries": state["embed_retries"] + 1}
+    
+    print(f"[Orch→Embed] APPROVE: Found {len(state['relevant_nodes'])} candidate device(s)")
     return {**state, "embed_feedback": None}  # approved
 
 # ── 4. Tool Caller AI ────────────────────────────────────
@@ -270,17 +372,17 @@ def tool_caller_node(state: AgentState) -> AgentState:
     feedback_hint = f"\nPrevious plan was rejected: {state['tool_feedback']}. Fix it." \
                     if state["tool_feedback"] else ""
 
-    prompt = f"""You are a smart home tool caller.
+    prompt = f"""You are a smart home tool caller. Device functions are room-specific (no room parameter needed).
 User intent: "{state['refined_query']}"
 Candidate device functions: {nodes_str}
 
-Available tools:
+Available tools (room-specific - call as-is, no room parameter):
 {TOOL_SCHEMA}
 {feedback_hint}
 
 Output ONLY a JSON array of actions. Format:
-[{{"function": "func_name", "args": {{"param": "value"}}}}]
-Default room = "living room" if unspecified. No explanation."""
+[{{"function": "func_name"}}, {{"function": "another_func", "args": {{"temp": 20}}}}]
+Most functions take no arguments. Only thermostat/ac functions take temp parameter. No explanation."""
 
     raw  = tool_llm.invoke(prompt).strip()
     plan = _extract_json(raw)
@@ -290,16 +392,24 @@ Default room = "living room" if unspecified. No explanation."""
 # ── 5. Orch reviews tool plan ────────────────────────────
 
 def orch_review_tool(state: AgentState) -> AgentState:
-    ctx = f"""User intent: "{state['refined_query']}"
-Tool Caller produced this JSON action plan: {state['tool_plan']}
-Available device functions: {list(DEVICE_MAP.keys())}"""
-
-    verdict = _orch_review(ctx, "Is this action plan correct and complete for the user intent?")
-    print(f"[Orch→Tool] {verdict}")
-
-    if verdict.startswith("RETRY"):
-        reason = verdict[6:].strip()
+    # Deterministic validation: check if all functions in plan exist in DEVICE_MAP
+    try:
+        plan = json.loads(state["tool_plan"] or "[]")
+    except Exception:
+        plan = []
+    
+    if not plan:
+        reason = "Tool plan is empty or invalid JSON."
+        print(f"[Orch→Tool] RETRY: {reason}")
         return {**state, "tool_feedback": reason, "tool_retries": state["tool_retries"] + 1}
+    
+    invalid_funcs = [a.get("function", "") for a in plan if a.get("function", "") not in DEVICE_MAP]
+    if invalid_funcs:
+        reason = f"Invalid functions: {invalid_funcs}. Use only: {list(DEVICE_MAP.keys())}"
+        print(f"[Orch→Tool] RETRY: {reason}")
+        return {**state, "tool_feedback": reason, "tool_retries": state["tool_retries"] + 1}
+    
+    print(f"[Orch→Tool] APPROVE: Plan has {len(plan)} valid action(s)")
     return {**state, "tool_feedback": None}  # approved
 
 # ── 6. Executor ──────────────────────────────────────────
@@ -333,14 +443,15 @@ def executor_node(state: AgentState) -> AgentState:
 # ── 7. Orch reviews execution results ───────────────────
 
 def orch_review_results(state: AgentState) -> AgentState:
-    ctx = f"""User intent: "{state['refined_query']}"
-Actions executed: {state['action_results']}"""
-
-    verdict = _orch_review(ctx, "Did these actions fully and correctly satisfy the user intent?")
-    print(f"[Orch→Results] {verdict}  (outer retry {state['outer_retries']}/{MAX_OUTER_RETRIES})")
-
-    if verdict.startswith("RETRY") and state["outer_retries"] < MAX_OUTER_RETRIES:
-        return {**state, "satisfied": False, "outer_retries": state["outer_retries"] + 1}
+    # Pragmatic check: if results contain no errors, mark as satisfied
+    has_errors = any("Error" in r or "Unknown" in r for r in state["action_results"])
+    
+    if has_errors:
+        print(f"[Orch→Results] RETRY: Execution had errors  (outer retry {state['outer_retries']}/{MAX_OUTER_RETRIES})")
+        if state["outer_retries"] < MAX_OUTER_RETRIES:
+            return {**state, "satisfied": False, "outer_retries": state["outer_retries"] + 1}
+    
+    print(f"[Orch→Results] APPROVE: Actions executed successfully  (outer retry {state['outer_retries']}/{MAX_OUTER_RETRIES})")
     return {**state, "satisfied": True}
 
 # ── 8. Responder ─────────────────────────────────────────
