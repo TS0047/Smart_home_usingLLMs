@@ -211,6 +211,9 @@ class AgentState(TypedDict):
     satisfied:          bool
 
     final_response:     Optional[str]
+    # query classification
+    is_action:          bool
+    query_response:     Optional[str]
 
 MAX_EMBED_RETRIES = 2
 MAX_TOOL_RETRIES  = 2
@@ -297,6 +300,60 @@ def _extract_json(raw: str) -> str:
     except Exception:
         return "[]"
 
+
+def _classify_query(query: str) -> tuple[bool, Optional[str]]:
+    """
+    Classify if query is an ACTION (control command) or INFO (question/listing).
+    Returns: (is_action, direct_response_if_info)
+    """
+    q = query.lower().strip()
+    info_keywords = ["what", "which", "list", "show", "tell", "available", "help", "status", "get", "how many", "is there", "where"]
+    action_keywords = ["turn", "switch", "set", "lock", "unlock", "on", "off", "dim", "brighten", "enable", "disable", "activate", "deactivate"]
+
+    # If it's a question mark, treat as info
+    if q.endswith("?"):
+        return False, None
+
+    # Specific quick responses
+    if "nodes in the bedroom" in q or "devices in the bedroom" in q or ("bedroom" in q and "list" in q):
+        return False, _get_bedroom_devices()
+    if "all devices" in q or "available devices" in q or "list all devices" in q:
+        return False, _get_all_devices()
+
+    if any(kw in q for kw in info_keywords):
+        return False, None
+    if any(kw in q for kw in action_keywords):
+        return True, None
+    # Default to non-action (safer)
+    return False, None
+
+
+def _get_bedroom_devices() -> str:
+    """Get all bedroom devices."""
+    bedroom_devices = [k for k in DEVICE_MAP.keys() if "bedroom" in k]
+    if not bedroom_devices:
+        return "No bedroom devices registered."
+    device_list = "\n  • ".join(bedroom_devices)
+    return f"Bedroom devices:\n  • {device_list}"
+
+
+def _get_all_devices() -> str:
+    """Get all available devices grouped by category."""
+    categories = {
+        "Lights": [k for k in DEVICE_MAP.keys() if "light" in k],
+        "TV": [k for k in DEVICE_MAP.keys() if "tv" in k],
+        "Fans": [k for k in DEVICE_MAP.keys() if "fan" in k],
+        "AC/Thermostat": [k for k in DEVICE_MAP.keys() if "ac" in k or "thermostat" in k],
+        "Doors": [k for k in DEVICE_MAP.keys() if "door" in k],
+    }
+    result = "Available devices:\n"
+    for category, devices in categories.items():
+        if devices:
+            result += f"\n{category}:\n"
+            for device in devices:
+                result += f"  • {device}\n"
+    return result
+
 def _orch_review(context: str, question: str) -> str:
     """Generic orchestrator review — returns APPROVE or RETRY:<reason>."""
     prompt = f"""{context}
@@ -316,22 +373,44 @@ No other text."""
 def orchestrator_node(state: AgentState) -> AgentState:
     print(f"\n{'═'*55}")
     print(f"[Orch] Query: {state['query']}  (outer retry #{state['outer_retries']})")
+    # First, classify the raw user query to avoid rewriting casual chat into actions
+    is_action, direct_resp = _classify_query(state['query'])
+    print(f"[Orch] initial_is_action={is_action} direct_response={'YES' if direct_resp else 'NO'}")
 
+    # If it's not an action, skip the rewriter and return early so router sends it to query_responder
+    if not is_action:
+        return {
+            **state,
+            "refined_query":   state['query'],
+            "embed_feedback":  None,
+            "tool_feedback":   None,
+            "embed_retries":   0,
+            "tool_retries":    0,
+            "action_results":  [],
+            "satisfied":       False,
+            "is_action":       False,
+            "query_response":  direct_resp,
+        }
+
+    # Otherwise, refine intent into a device-action using the LLM (only for actions)
     prompt = f"""You are a smart home orchestrator.
 User query: "{state['query']}"
 Rephrase as a clear, concise device-action intent. One sentence only."""
     refined = orch_llm.invoke(prompt).strip()
     print(f"[Orch] Refined: {refined}")
 
+    # mark as action and continue
     return {
         **state,
-        "refined_query":  refined,
-        "embed_feedback": None,
-        "tool_feedback":  None,
-        "embed_retries":  0,
-        "tool_retries":   0,
-        "action_results": [],
-        "satisfied":      False,
+        "refined_query":   refined,
+        "embed_feedback":  None,
+        "tool_feedback":   None,
+        "embed_retries":   0,
+        "tool_retries":    0,
+        "action_results":  [],
+        "satisfied":       False,
+        "is_action":       True,
+        "query_response":  None,
     }
 
 # ── 2. Embedding AI ──────────────────────────────────────
@@ -465,6 +544,62 @@ Write one friendly sentence confirming to the user what was done."""
     print(f"\n[Response] ✅ {reply}")
     return {**state, "final_response": reply}
 
+
+def query_responder_node(state: AgentState) -> AgentState:
+    print(f"[QueryResponder] Handling non-action query")
+    # If classifier already provided a direct response, use it
+    if state.get("query_response"):
+        reply = state["query_response"]
+        print("[QueryResponder] Using direct cached response")
+        return {**state, "final_response": reply, "satisfied": True}
+
+    q = state["refined_query"].lower()
+    if ("bedroom" in q and ("what" in q or "nodes" in q or "list" in q)):
+        reply = _get_bedroom_devices()
+    elif any(kw in q for kw in ["all devices", "available devices", "list all"]):
+        reply = _get_all_devices()
+    else:
+        prompt = f"You are a helpful smart-home assistant. Answer the user's question briefly.\nUser question: {state['query']}\nReply in one friendly sentence."
+        reply = orch_llm.invoke(prompt).strip()
+
+    print(f"[QueryResponder] Reply prepared")
+    return {**state, "final_response": reply, "satisfied": True}
+
+
+def route_after_orchestrator(state: AgentState) -> str:
+    # If classifier says it's an action, proceed to embedding; otherwise go to query_responder
+    if state.get("is_action"):
+        return "proceed_to_embed"
+    return "query_responder"
+
+
+def llm_frontend_node(state: AgentState) -> AgentState:
+    """Conversational front for users. Replies to info queries, forwards actions to orchestrator."""
+    print("[LLMFront] Conversational front received user input")
+    # Classify raw user input
+    is_action, direct_resp = _classify_query(state.get("query", ""))
+    print(f"[LLMFront] is_action={is_action} direct_response={'YES' if direct_resp else 'NO'}")
+
+    if not is_action:
+        # Direct response if available
+        if direct_resp:
+            reply = direct_resp
+        else:
+            prompt = f"You are a friendly, simple smart-home assistant for non-technical users. Answer briefly and politely.\nUser: {state['query']}\nReply in one sentence."
+            reply = orch_llm.invoke(prompt).strip()
+        print(f"[LLMFront] Replying to user: {reply}")
+        return {**state, "final_response": reply, "satisfied": True, "is_action": False, "query_response": direct_resp}
+
+    # For actions, forward to orchestrator (do not execute here)
+    print("[LLMFront] Forwarding action to orchestrator")
+    return {**state, "is_action": True, "query_response": None}
+
+
+def route_after_frontend(state: AgentState) -> str:
+    if state.get("is_action"):
+        return "to_orch"
+    return "frontend_respond"
+
 # ─────────────────────────────────────────────────────────
 # Conditional Edges (routing logic)
 # ─────────────────────────────────────────────────────────
@@ -497,6 +632,7 @@ def build_graph(col: chromadb.Collection):
     g = StateGraph(AgentState)
 
     g.add_node("orchestrator",        orchestrator_node)
+    g.add_node("llm_frontend",        llm_frontend_node)
     g.add_node("embedding_ai",        _embed)
     g.add_node("orch_review_embed",   orch_review_embed)
     g.add_node("tool_caller",         tool_caller_node)
@@ -504,10 +640,22 @@ def build_graph(col: chromadb.Collection):
     g.add_node("executor",            executor_node)
     g.add_node("orch_review_results", orch_review_results)
     g.add_node("responder",           responder_node)
+    g.add_node("query_responder",     query_responder_node)
 
-    # Entry
-    g.set_entry_point("orchestrator")
-    g.add_edge("orchestrator", "embedding_ai")
+    # Entry: conversational front-end handles casual conversation and forwards actions
+    g.set_entry_point("llm_frontend")
+    g.add_conditional_edges(
+        "llm_frontend",
+        route_after_frontend,
+        {"to_orch": "orchestrator", "frontend_respond": "query_responder"},
+    )
+
+    # Route after orchestrator: action -> embedding flow, info -> query_responder
+    g.add_conditional_edges(
+        "orchestrator",
+        route_after_orchestrator,
+        {"proceed_to_embed": "embedding_ai", "query_responder": "query_responder"},
+    )
 
     # Inner embedding loop
     g.add_edge("embedding_ai", "orch_review_embed")
@@ -534,6 +682,7 @@ def build_graph(col: chromadb.Collection):
     )
 
     g.add_edge("responder", END)
+    g.add_edge("query_responder", END)
 
     return g.compile()
 
@@ -555,21 +704,60 @@ def run_query(app, query: str):
         "outer_retries":   0,
         "satisfied":       False,
         "final_response":  None,
+        "is_action":       False,
+        "query_response":  None,
     }
     return app.invoke(init_state)
 
 
 if __name__ == "__main__":
-    print("Starting Smart Home Agent (Agentic Supervisor Mode)...\n")
+    print("╔" + "═"*53 + "╗")
+    print("║" + " "*53 + "║")
+    print("║" + "  🏠 Smart Home Voice & Text Assistant 🏠".center(53) + "║")
+    print("║" + " "*53 + "║")
+    print("║" + "  Type what you want to do in plain English".center(53) + "║")
+    print("║" + "  Example: 'Turn on bedroom light'".center(53) + "║")
+    print("║" + "  Type 'exit' or 'quit' to stop".center(53) + "║")
+    print("║" + " "*53 + "║")
+    print("╚" + "═"*53 + "╝")
+    print()
+
     col = init_chroma()
     app = build_graph(col)
 
-    queries = [
-        "Turn on the lights in the bedroom",
-        "I'm going to sleep — set AC to 20 degrees and lock the front door",
-        "Switch off the TV and fan in the living room",
-    ]
-
-    for q in queries:
-        run_query(app, q)
-        print()
+    command_count = 0
+    while True:
+        try:
+            user_input = input("\n💬 You: ").strip()
+            
+            # Handle exit commands
+            if user_input.lower() in ["exit", "quit", "bye", "goodbye", "q"]:
+                print("\n" + "="*55)
+                print("👋 Thank you for using Smart Home Assistant!")
+                print("   Goodbye! 🏠")
+                print("="*55)
+                break
+            
+            # Skip empty inputs
+            if not user_input:
+                print("ℹ️  Please type a command (e.g., 'Turn on bedroom light')")
+                continue
+            
+            command_count += 1
+            print("\n" + "─"*55)
+            print(f"[Command #{command_count}] Processing: {user_input}")
+            print("─"*55)
+            
+            # Run the query through the agent
+            run_query(app, user_input)
+            
+        except KeyboardInterrupt:
+            print("\n\n" + "="*55)
+            print("⚠️  Session interrupted by user")
+            print("   Goodbye! 🏠")
+            print("="*55)
+            break
+        except Exception as e:
+            print(f"\n❌ Error: {e}")
+            print("ℹ️  Please try rephrasing your command.")
+            continue

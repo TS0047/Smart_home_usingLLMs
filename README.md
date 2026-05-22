@@ -83,15 +83,51 @@ Go to the Smart Home folder and run:
 python smart_home.py
 ```
 
-That's it! The system will start and process your commands.
+### Step 3: Start Chatting!
+
+Once it starts, you'll see a welcome screen. Simply type what you want to do:
+
+```
+💬 You: Turn on the bedroom light
+```
+
+Then just press **Enter** and the system will execute your command!
 
 ---
 
 ## 💬 How to Use It
 
-### Format: Just Type Naturally
+The system runs in **interactive chat mode**. It's like texting a friend:
 
-You don't need to use special commands. Just type what you want done:
+```
+╔═══════════════════════════════════════════════════════╗
+║                                                       ║
+║   🏠 Smart Home Voice & Text Assistant 🏠            ║
+║                                                       ║
+║   Type what you want to do in plain English          ║
+║   Example: 'Turn on bedroom light'                  ║
+║   Type 'exit' or 'quit' to stop                     ║
+║                                                       ║
+╚═══════════════════════════════════════════════════════╝
+
+💬 You: Turn on the bedroom light
+
+[Processing...]
+
+[Response] ✅ Your bedroom light is now on!
+
+💬 You: Set the thermostat to 22 degrees
+
+[Processing...]
+
+[Response] ✅ Thermostat set to 22°C!
+
+💬 You: exit
+
+👋 Thank you for using Smart Home Assistant!
+```
+
+### What You Can Type
 
 | What You Want | What You Type |
 |---|---|
@@ -101,14 +137,30 @@ You don't need to use special commands. Just type what you want done:
 | Lock door before leaving | "Lock the front door" |
 | Change temperature | "Set the thermostat to 22 degrees" |
 
+### To Exit
+
+Just type any of these:
+- `exit`
+- `quit`
+- `bye`
+- `goodbye`
+
+Or press **Ctrl + C** on your keyboard to stop immediately.
+
 ---
 
 ## 📊 Output Explanation
 
-When you run a command, you'll see something like this:
+When you type a command, you'll see something like this:
 
 ```
-═════════════════════════════════════════════════════
+💬 You: Turn on the lights in the bedroom
+
+───────────────────────────────────────────────────────
+[Command #1] Processing: Turn on the lights in the bedroom
+───────────────────────────────────────────────────────
+
+═════════════════════════════════════════════════════════
 [Orch] Query: Turn on the lights in the bedroom
 [Orch] Refined: Turn on bedroom light
 
@@ -170,7 +222,49 @@ When you run a command, you'll see something like this:
 
 ---
 
-## 🔧 Can I Add More Devices?
+## � Interactive Chat Features
+
+The system has several helpful features built-in:
+
+### ✏️ **Command Counter**
+Each command is numbered, so you know how many commands you've executed:
+```
+💬 You: Turn on bedroom light
+───────────────────────────────────────────────────────
+[Command #1] Processing: Turn on the lights in the bedroom
+───────────────────────────────────────────────────────
+```
+
+### 🚪 **Multiple Exit Options**
+You can stop the program by typing:
+- `exit`
+- `quit`
+- `bye`
+- `goodbye`
+- Or press **Ctrl + C** anytime
+
+### 🛡️ **Error Handling**
+If something goes wrong:
+- The system won't crash
+- You'll get a helpful message
+- You can try again with a different command
+
+### 📋 **Continuous Session**
+Keep the program running and issue multiple commands one after another:
+```
+💬 You: Turn on bedroom light
+[Response] ✅ Your bedroom light is now on!
+
+💬 You: Lock the front door
+[Response] ✅ Front door is now locked!
+
+💬 You: Set thermostat to 22
+[Response] ✅ Thermostat set to 22°C!
+```
+
+---
+
+## �🔧 Can I Add More Devices?
 
 Yes! You can add more rooms or devices by editing the Python file (ask a tech-savvy friend or family member to help).
 
