@@ -213,7 +213,11 @@ class AgentState(TypedDict):
     final_response:     Optional[str]
     # query classification
     is_action:          bool
-    query_response:     Optional[str]
+    # chat history for context window
+    chat_history:       List[str]
+    # orchestrator clarification request
+    pending_question:   Optional[str]
+    pending_question_asked: bool
 
 MAX_EMBED_RETRIES = 2
 MAX_TOOL_RETRIES  = 2
@@ -301,6 +305,14 @@ def _extract_json(raw: str) -> str:
         return "[]"
 
 
+def _append_chat_message(history: List[str], speaker: str, text: str, max_history: int = 10) -> List[str]:
+    return (history + [f"{speaker}: {text}"])[-max_history:]
+
+
+def _recent_chat_context(history: List[str], size: int = 5) -> str:
+    return "\n".join(history[-size:])
+
+
 def _classify_query(query: str) -> tuple[bool, Optional[str]]:
     """
     Classify if query is an ACTION (control command) or INFO (question/listing).
@@ -354,16 +366,6 @@ def _get_all_devices() -> str:
                 result += f"  • {device}\n"
     return result
 
-def _orch_review(context: str, question: str) -> str:
-    """Generic orchestrator review — returns APPROVE or RETRY:<reason>."""
-    prompt = f"""{context}
-Question: {question}
-Reply with exactly one of:
-  APPROVE
-  RETRY:<one-sentence reason>
-No other text."""
-    return orch_llm.invoke(prompt).strip()
-
 # ─────────────────────────────────────────────────────────
 # Graph Nodes
 # ─────────────────────────────────────────────────────────
@@ -377,7 +379,7 @@ def orchestrator_node(state: AgentState) -> AgentState:
     is_action, direct_resp = _classify_query(state['query'])
     print(f"[Orch] initial_is_action={is_action} direct_response={'YES' if direct_resp else 'NO'}")
 
-    # If it's not an action, skip the rewriter and return early so router sends it to query_responder
+    # If it's not an action, skip the rewriter and return early; chat frontend already handles it.
     if not is_action:
         return {
             **state,
@@ -389,7 +391,6 @@ def orchestrator_node(state: AgentState) -> AgentState:
             "action_results":  [],
             "satisfied":       False,
             "is_action":       False,
-            "query_response":  direct_resp,
         }
 
     # Otherwise, refine intent into a device-action using the LLM (only for actions)
@@ -410,7 +411,6 @@ Rephrase as a clear, concise device-action intent. One sentence only."""
         "action_results":  [],
         "satisfied":       False,
         "is_action":       True,
-        "query_response":  None,
     }
 
 # ── 2. Embedding AI ──────────────────────────────────────
@@ -432,11 +432,11 @@ def embedding_node(state: AgentState, col: chromadb.Collection) -> AgentState:
 # ── 3. Orch reviews embedding results ───────────────────
 
 def orch_review_embed(state: AgentState) -> AgentState:
-    # Pragmatic check: if any relevant nodes were found, approve. Otherwise retry.
+    # Pragmatic check: if any relevant nodes were found, approve. Otherwise request clarification.
     if not state["relevant_nodes"]:
-        reason = "No relevant IoT functions found in search."
-        print(f"[Orch→Embed] RETRY: {reason}")
-        return {**state, "embed_feedback": reason, "embed_retries": state["embed_retries"] + 1}
+        question = "I couldn't identify which device you want to control. Can you please specify the room or device, such as bedroom light or front door lock?"
+        print(f"[Orch→Embed] CLARIFY: {question}")
+        return {**state, "embed_feedback": None, "embed_retries": 0, "pending_question": question, "pending_question_asked": False, "is_action": False}
     
     print(f"[Orch→Embed] APPROVE: Found {len(state['relevant_nodes'])} candidate device(s)")
     return {**state, "embed_feedback": None}  # approved
@@ -484,9 +484,9 @@ def orch_review_tool(state: AgentState) -> AgentState:
     
     invalid_funcs = [a.get("function", "") for a in plan if a.get("function", "") not in DEVICE_MAP]
     if invalid_funcs:
-        reason = f"Invalid functions: {invalid_funcs}. Use only: {list(DEVICE_MAP.keys())}"
-        print(f"[Orch→Tool] RETRY: {reason}")
-        return {**state, "tool_feedback": reason, "tool_retries": state["tool_retries"] + 1}
+        question = "I couldn't map your request to a supported device. Please tell me the room and device clearly, for example 'turn on bedroom light' or 'lock front door'."
+        print(f"[Orch→Tool] CLARIFY: {question}")
+        return {**state, "tool_feedback": None, "tool_retries": 0, "pending_question": question, "pending_question_asked": False, "is_action": False}
     
     print(f"[Orch→Tool] APPROVE: Plan has {len(plan)} valid action(s)")
     return {**state, "tool_feedback": None}  # approved
@@ -545,72 +545,71 @@ Write one friendly sentence confirming to the user what was done."""
     return {**state, "final_response": reply}
 
 
-def query_responder_node(state: AgentState) -> AgentState:
-    print(f"[QueryResponder] Handling non-action query")
-    # If classifier already provided a direct response, use it
-    if state.get("query_response"):
-        reply = state["query_response"]
-        print("[QueryResponder] Using direct cached response")
-        return {**state, "final_response": reply, "satisfied": True}
-
-    q = state["refined_query"].lower()
-    if ("bedroom" in q and ("what" in q or "nodes" in q or "list" in q)):
-        reply = _get_bedroom_devices()
-    elif any(kw in q for kw in ["all devices", "available devices", "list all"]):
-        reply = _get_all_devices()
-    else:
-        prompt = f"You are a helpful smart-home assistant. Answer the user's question briefly.\nUser question: {state['query']}\nReply in one friendly sentence."
-        reply = orch_llm.invoke(prompt).strip()
-
-    print(f"[QueryResponder] Reply prepared")
-    return {**state, "final_response": reply, "satisfied": True}
-
-
 def route_after_orchestrator(state: AgentState) -> str:
-    # If classifier says it's an action, proceed to embedding; otherwise go to query_responder
+    if state.get("pending_question"):
+        return "clarify"
     if state.get("is_action"):
         return "proceed_to_embed"
-    return "query_responder"
+    return "proceed_to_chat"
 
 
 def llm_frontend_node(state: AgentState) -> AgentState:
     """Conversational front for users. Replies to info queries, forwards actions to orchestrator."""
     print("[LLMFront] Conversational front received user input")
-    # Classify raw user input
     is_action, direct_resp = _classify_query(state.get("query", ""))
-    print(f"[LLMFront] is_action={is_action} direct_response={'YES' if direct_resp else 'NO'}")
+    current_history = state.get("chat_history", [])
+
+    if state.get("pending_question") and not state.get("pending_question_asked"):
+        current_history = _append_chat_message(current_history, "User", state["query"])
+        reply = state["pending_question"]
+        print(f"[LLMFront] Asking clarification: {reply}")
+        updated_history = _append_chat_message(current_history, "Assistant", reply)
+        return {**state, "final_response": reply, "satisfied": True, "chat_history": updated_history, "pending_question": state["pending_question"], "pending_question_asked": True, "is_action": False}
+
+    if state.get("pending_question") and state.get("pending_question_asked"):
+        current_history = _append_chat_message(current_history, "User", state["query"])
+        state = {**state, "pending_question": None, "pending_question_asked": False, "chat_history": current_history}
+        is_action, direct_resp = _classify_query(state.get("query", ""))
+        print(f"[LLMFront] is_action={is_action} direct_response={'YES' if direct_resp else 'NO'}")
+    else:
+        current_history = _append_chat_message(current_history, "User", state["query"])
+        print(f"[LLMFront] is_action={is_action} direct_response={'YES' if direct_resp else 'NO'}")
 
     if not is_action:
-        # Direct response if available
         if direct_resp:
             reply = direct_resp
         else:
-            prompt = f"You are a friendly, simple smart-home assistant for non-technical users. Answer briefly and politely.\nUser: {state['query']}\nReply in one sentence."
+            prompt = f"You are a friendly, simple smart-home assistant for non-technical users. Use the conversation history to respond clearly, but do not perform any device actions.\n\nConversation history:\n{_recent_chat_context(current_history, 5)}\n\nReply as Assistant in one friendly sentence."
             reply = orch_llm.invoke(prompt).strip()
         print(f"[LLMFront] Replying to user: {reply}")
-        return {**state, "final_response": reply, "satisfied": True, "is_action": False, "query_response": direct_resp}
+        updated_history = _append_chat_message(current_history, "Assistant", reply)
+        return {**state, "final_response": reply, "satisfied": True, "is_action": False, "chat_history": updated_history, "pending_question": None, "pending_question_asked": False}
 
     # For actions, forward to orchestrator (do not execute here)
     print("[LLMFront] Forwarding action to orchestrator")
-    return {**state, "is_action": True, "query_response": None}
+    return {**state, "is_action": True, "chat_history": current_history, "pending_question": None, "pending_question_asked": False}
 
 
 def route_after_frontend(state: AgentState) -> str:
     if state.get("is_action"):
         return "to_orch"
-    return "frontend_respond"
+    return "frontend_end"
 
 # ─────────────────────────────────────────────────────────
 # Conditional Edges (routing logic)
 # ─────────────────────────────────────────────────────────
 
 def route_after_embed_review(state: AgentState) -> str:
+    if state.get("pending_question"):
+        return "clarify"
     if state["embed_feedback"] and state["embed_retries"] <= MAX_EMBED_RETRIES:
         print(f"[Router] Embed retry #{state['embed_retries']}")
         return "retry_embed"
     return "proceed_to_tool"
 
 def route_after_tool_review(state: AgentState) -> str:
+    if state.get("pending_question"):
+        return "clarify"
     if state["tool_feedback"] and state["tool_retries"] <= MAX_TOOL_RETRIES:
         print(f"[Router] Tool retry #{state['tool_retries']}")
         return "retry_tool"
@@ -640,21 +639,20 @@ def build_graph(col: chromadb.Collection):
     g.add_node("executor",            executor_node)
     g.add_node("orch_review_results", orch_review_results)
     g.add_node("responder",           responder_node)
-    g.add_node("query_responder",     query_responder_node)
 
     # Entry: conversational front-end handles casual conversation and forwards actions
     g.set_entry_point("llm_frontend")
     g.add_conditional_edges(
         "llm_frontend",
         route_after_frontend,
-        {"to_orch": "orchestrator", "frontend_respond": "query_responder"},
+        {"to_orch": "orchestrator", "frontend_end": END},
     )
 
-    # Route after orchestrator: action -> embedding flow, info -> query_responder
+    # Route after orchestrator: action -> embedding flow, clarification -> chat frontend
     g.add_conditional_edges(
         "orchestrator",
         route_after_orchestrator,
-        {"proceed_to_embed": "embedding_ai", "query_responder": "query_responder"},
+        {"proceed_to_embed": "embedding_ai", "proceed_to_chat": "llm_frontend", "clarify": "llm_frontend"},
     )
 
     # Inner embedding loop
@@ -662,7 +660,7 @@ def build_graph(col: chromadb.Collection):
     g.add_conditional_edges(
         "orch_review_embed",
         route_after_embed_review,
-        {"retry_embed": "embedding_ai", "proceed_to_tool": "tool_caller"},
+        {"retry_embed": "embedding_ai", "proceed_to_tool": "tool_caller", "clarify": "llm_frontend"},
     )
 
     # Inner tool loop
@@ -670,7 +668,7 @@ def build_graph(col: chromadb.Collection):
     g.add_conditional_edges(
         "orch_review_tool",
         route_after_tool_review,
-        {"retry_tool": "tool_caller", "proceed_to_exec": "executor"},
+        {"retry_tool": "tool_caller", "proceed_to_exec": "executor", "clarify": "llm_frontend"},
     )
 
     # Outer loop
@@ -682,7 +680,6 @@ def build_graph(col: chromadb.Collection):
     )
 
     g.add_edge("responder", END)
-    g.add_edge("query_responder", END)
 
     return g.compile()
 
@@ -690,23 +687,41 @@ def build_graph(col: chromadb.Collection):
 # Runner
 # ─────────────────────────────────────────────────────────
 
-def run_query(app, query: str):
-    init_state: AgentState = {
-        "query":           query,
-        "refined_query":   "",
-        "relevant_nodes":  [],
-        "embed_feedback":  None,
-        "embed_retries":   0,
-        "tool_plan":       None,
-        "tool_feedback":   None,
-        "tool_retries":    0,
-        "action_results":  [],
-        "outer_retries":   0,
-        "satisfied":       False,
-        "final_response":  None,
-        "is_action":       False,
-        "query_response":  None,
-    }
+def run_query(app, query: str, prev_state: Optional[AgentState] = None):
+    if prev_state is None:
+        init_state: AgentState = {
+            "query":           query,
+            "refined_query":   "",
+            "relevant_nodes":  [],
+            "embed_feedback":  None,
+            "embed_retries":   0,
+            "tool_plan":       None,
+            "tool_feedback":   None,
+            "tool_retries":    0,
+            "action_results":  [],
+            "outer_retries":   0,
+            "satisfied":       False,
+            "final_response":  None,
+            "is_action":       False,
+            "chat_history":    [],
+            "pending_question": None,
+            "pending_question_asked": False,
+        }
+    else:
+        init_state = {
+            **prev_state,
+            "query":           query,
+            "refined_query":   "",
+            "embed_feedback":  None,
+            "embed_retries":   0,
+            "tool_plan":       None,
+            "tool_feedback":   None,
+            "tool_retries":    0,
+            "action_results":  [],
+            "outer_retries":   0,
+            "satisfied":       False,
+            "final_response": None,
+        }
     return app.invoke(init_state)
 
 
@@ -726,6 +741,7 @@ if __name__ == "__main__":
     app = build_graph(col)
 
     command_count = 0
+    current_state: Optional[AgentState] = None
     while True:
         try:
             user_input = input("\n💬 You: ").strip()
@@ -748,8 +764,8 @@ if __name__ == "__main__":
             print(f"[Command #{command_count}] Processing: {user_input}")
             print("─"*55)
             
-            # Run the query through the agent
-            run_query(app, user_input)
+            # Run the query through the agent and preserve session history
+            current_state = run_query(app, user_input, current_state)
             
         except KeyboardInterrupt:
             print("\n\n" + "="*55)
